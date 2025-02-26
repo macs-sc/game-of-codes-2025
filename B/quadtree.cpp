@@ -16,33 +16,33 @@ private:
     struct Node {
         pii bounds_x;
         pii bounds_y;
-        vector<array<int, 4>> points; // Stores (x, y, price, order of insertion)
+        vector<array<int, 4>> points; // Stores points in the form (price, order of insertion, x, y)
         unique_ptr<Node> subdivisions[4];
-        array<int, 4> price = {INT_MAX, INT_MAX, -1, -1}; // Stores cheapest price and position
+        array<int, 4> price = defaultPrice(); // Stores cheapest price and position within this node
 
+        // Constructs a node with the given x and y bounds.
         Node(const pii& bx, const pii& by) : bounds_x(bx), bounds_y(by) {}
 
-        bool contains(int x, int y) const {
-            return x >= bounds_x.first && x <= bounds_x.second &&
-                   y >= bounds_y.first && y <= bounds_y.second;
-        }
-
+        // Checks if the node is completely within the rectangle defined by bx and by.
         bool within(const pii& bx, const pii& by) const {
             return bx.first <= bounds_x.first && bx.second >= bounds_x.second &&
                    by.first <= bounds_y.first && by.second >= bounds_y.second;
         }
 
+        // Checks if the node intersects with the rectangle defined by bx and by.
         bool intersect(const pii& bx, const pii& by) const {
             return !(bx.second < bounds_x.first || bx.first > bounds_x.second ||
                      by.second < bounds_y.first || by.first > bounds_y.second);
         }
 
+        // Determines which quadrant (subdivision index) the point (x, y) belongs to.
         int index(int x, int y) const {
             int mid_x = (bounds_x.first + bounds_x.second) / 2;
             int mid_y = (bounds_y.first + bounds_y.second) / 2;
             return (y > mid_y) * 2 + (x > mid_x);
         }
 
+        // Subdivides the current node into four child quadrants.
         void subdivide() {
             int mid_x = (bounds_x.first + bounds_x.second) / 2;
             int mid_y = (bounds_y.first + bounds_y.second) / 2;
@@ -52,6 +52,7 @@ private:
             subdivisions[3] = make_unique<Node>(pii{mid_x + 1, bounds_x.second}, pii{mid_y + 1, bounds_y.second});
         }
 
+        // Redistributes points from the current node into its subdivisions.
         void redistributePoints() {
             for (auto& [p, order, x, y] : points) {
                 int idx = index(x, y);
@@ -61,29 +62,32 @@ private:
             points.clear();
         }
 
+        // Updates the node's stored price if the given point has a cheaper price.
         void updatePrice(int p, int order, int x, int y) {
             price = min(price, {p, order, x, y});
         }
     };
 
     unique_ptr<Node> root;
-    int size = 0;
 
 public:
+    // Initializes the QueryEngine with a root node covering the entire coordinate bounds.
     QueryEngine() : root(make_unique<Node>(pii{0, BOUND}, pii{0, BOUND})) {}
 
+    // Inserts a list of properties into the query engine and balances the tree accordingly.
     void insert(const vector<array<int, 4>>& properties) {
         auto node = root.get();
         node->points = properties;
         balanceTree(root.get());
-        size++;
     }
 
+    // Queries the tree for the cheapest property within the specified rectangular region.
     [[nodiscard]] array<int, 4> query(const pii& bx, const pii& by) const {
         return queryRecursive(bx, by, root.get());
     }
 
 private:
+    // Balances the tree by subdividing nodes that exceed the threshold number of points.
     void balanceTree(Node* node) {
         if (node->points.size() <= THRESHOLD) return;
 
@@ -95,11 +99,12 @@ private:
         }
     }
 
+    // Recursively searches for the cheapest property within the specified rectangular region.
     static array<int, 4> queryRecursive(const pii& bx, const pii& by, const Node* node) {
-        if (!node || !node->intersect(bx, by)) return {INT_MAX, INT_MAX, -1, -1};
+        if (!node || !node->intersect(bx, by)) return defaultPrice();
         if (node->within(bx, by)) return node->price;
 
-        array<int, 4> result = {INT_MAX, INT_MAX, -1, -1};
+        array<int, 4> result = defaultPrice();
         if (!node->subdivisions[0]) {
             for (const auto& [p, order, x, y] : node->points) {
                 if (!(x >= bx.first && x <= bx.second && y >= by.first && y <= by.second)) continue;
@@ -116,6 +121,10 @@ private:
         return result;
     }
 
+    // Returns a default price array indicating that no valid property was found.
+    [[nodiscard]] static array<int, 4> defaultPrice() {
+        return {INT_MAX, INT_MAX, -1, -1};
+    }
 };
 
 
